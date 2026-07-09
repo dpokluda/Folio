@@ -117,6 +117,9 @@ function buildMenu({ isMac, themes, activeTheme, recentFiles, actions }) {
     role: 'help',
     label: 'Help',
     submenu: [
+      { label: 'Welcome', click: () => actions.openWelcome() },
+      { label: 'Markdown Formatting Tour', click: () => actions.openFormattingTour() },
+      { type: 'separator' },
       { label: 'About Folio', click: () => actions.about() },
       { label: 'Folio on GitHub', click: () => actions.openRepo() },
     ],

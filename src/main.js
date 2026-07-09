@@ -25,11 +25,20 @@ function themesDir() {
     : path.join(__dirname, '..', 'themes');
 }
 
-function samplePath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'samples', 'welcome.md')
-    : path.join(__dirname, '..', 'samples', 'welcome.md');
+// Bundled documents (welcome, formatting tour) live in samples/ and are packed
+// into the app (app.asar). __dirname-relative resolution works both in dev and
+// when packaged — Electron reads files inside app.asar transparently.
+function builtinDocPath(file) {
+  return path.join(__dirname, '..', 'samples', file);
 }
+
+// Built-in documents shown from the Help menu. Opened as *untitled* so they are
+// viewable and editable, but Save becomes Save As and never overwrites the
+// bundled copy.
+const BUILTIN_DOCS = {
+  welcome: { file: 'welcome.md', name: 'Welcome' },
+  'formatting-tour': { file: 'formatting-tour.md', name: 'Markdown Formatting Tour' },
+};
 
 // Window/taskbar icon. On Windows the packaged app uses the icon embedded in
 // the .exe by electron-builder; setting it here mainly gives `npm start` (dev)
@@ -154,6 +163,8 @@ const actions = {
   },
   about: () => showAbout(),
   openRepo: () => shell.openExternal(REPO_URL),
+  openWelcome: () => openBuiltinDoc('welcome'),
+  openFormattingTour: () => openBuiltinDoc('formatting-tour'),
 };
 
 function send(channel, payload) {
@@ -188,6 +199,26 @@ function fileArgFrom(argv) {
 async function openExternalPath(filePath) {
   if (!(await confirmDiscardIfDirty())) return;
   loadFile(filePath);
+}
+
+// Open a bundled document (welcome / formatting tour) as an untitled buffer, so
+// it can be read and edited but Save won't overwrite the shipped copy.
+async function openBuiltinDoc(key) {
+  const doc = BUILTIN_DOCS[key];
+  if (!doc) return;
+  if (!(await confirmDiscardIfDirty())) return;
+  let content;
+  try {
+    content = fs.readFileSync(builtinDocPath(doc.file), 'utf8');
+  } catch (err) {
+    dialog.showErrorBox('Folio', `Cannot open ${doc.name}.\n\n${err.message}`);
+    return;
+  }
+  currentPath = null;
+  currentName = doc.name;
+  setDirty(false);
+  send('load-document', { path: null, content, name: doc.name });
+  updateTitle();
 }
 
 async function loadFile(filePath) {
@@ -392,7 +423,7 @@ ipcMain.handle('get-init', () => {
   if (!document) {
     let initialContent = '';
     try {
-      initialContent = fs.readFileSync(samplePath(), 'utf8');
+      initialContent = fs.readFileSync(builtinDocPath('welcome.md'), 'utf8');
     } catch (_) {
       initialContent = '# Welcome to Folio\n\nCreate or open a Markdown file to get started.\n';
     }
