@@ -30,6 +30,16 @@ function samplePath() {
     : path.join(__dirname, '..', 'samples', 'welcome.md');
 }
 
+// Window/taskbar icon. On Windows the packaged app uses the icon embedded in
+// the .exe by electron-builder; setting it here mainly gives `npm start` (dev)
+// and Linux a proper icon. Returns undefined if the asset is missing.
+function appIconPath() {
+  const base = path.join(__dirname, '..', 'build', 'icons');
+  const file = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const p = path.join(base, file);
+  return fs.existsSync(p) ? p : undefined;
+}
+
 function listThemes() {
   try {
     return fs
@@ -54,6 +64,7 @@ function createWindow() {
     minWidth: 640,
     minHeight: 480,
     backgroundColor: '#ffffff',
+    icon: appIconPath(),
     autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

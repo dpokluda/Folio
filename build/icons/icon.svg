@@ -1,0 +1,29 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="96" x2="864" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EEF1F4"/>
+    </linearGradient>
+    <linearGradient id="caret" x1="0" y1="332" x2="0" y2="692" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#0EA5A3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded-square app tile with subtle border for light backgrounds -->
+  <rect x="96" y="96" width="832" height="832" rx="216" fill="url(#bg)"/>
+  <rect x="97.5" y="97.5" width="829" height="829" rx="214.5" fill="none" stroke="#D3D9DF" stroke-width="3"/>
+
+  <!-- stylized F -->
+  <g fill="#2D333B">
+    <!-- vertical stem -->
+    <rect x="356" y="316" width="86" height="392" rx="30"/>
+    <!-- top arm -->
+    <rect x="356" y="316" width="270" height="84" rx="30"/>
+    <!-- middle arm -->
+    <rect x="356" y="470" width="210" height="80" rx="28"/>
+  </g>
+
+  <!-- editor caret accent -->
+  <rect x="656" y="332" width="34" height="360" rx="17" fill="url(#caret)"/>
+</svg>

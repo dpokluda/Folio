@@ -93,6 +93,20 @@ npm run dist:linux    # Linux (AppImage + deb)
 
 Build artifacts are written to `release/`.
 
+#### App icon
+
+The app icon lives in `build/icons/` as an editable `icon.svg` (a light rounded
+tile with a stylized **F** and a teal editor caret). The packaged `.ico`
+(Windows), `.icns` (macOS), and `.png` (Linux) files are generated from it with:
+
+```sh
+npm run icons
+```
+
+(Requires the dev-only `sharp` and `png2icons` packages, installed by
+`npm install`.) The generated files are committed, so this only needs re-running
+when the SVG changes.
+
 #### Windows packaging note
 
 electron-builder downloads a `winCodeSign` bundle that contains macOS symlinks.

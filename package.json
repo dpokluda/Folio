@@ -14,6 +14,7 @@
     "build:renderer": "node build.js",
     "watch:renderer": "node build.js --watch",
     "start": "npm run build:renderer && electron .",
+    "icons": "node scripts/generate-icons.js",
     "prepare:wincodesign": "node scripts/prepare-wincodesign.js",
     "dist": "npm run build:renderer && npm run prepare:wincodesign && electron-builder",
     "dist:win": "npm run build:renderer && npm run prepare:wincodesign && electron-builder --win",
@@ -37,7 +38,9 @@
   "devDependencies": {
     "electron": "^31.3.1",
     "electron-builder": "^24.13.3",
-    "esbuild": "^0.23.0"
+    "esbuild": "^0.23.0",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.35.3"
   },
   "build": {
     "appId": "com.dpokluda.folio",
@@ -46,6 +49,7 @@
       "src/**/*",
       "themes/**/*",
       "samples/**/*",
+      "build/icons/**",
       "!**/*.map"
     ],
     "extraResources": [
@@ -58,8 +62,8 @@
     "directories": {
       "output": "release"
     },
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg", "category": "public.app-category.productivity" },
-    "linux": { "target": ["AppImage", "deb"], "category": "Office" }
+    "win": { "target": "nsis", "icon": "build/icons/icon.ico" },
+    "mac": { "target": "dmg", "category": "public.app-category.productivity", "icon": "build/icons/icon.icns" },
+    "linux": { "target": ["AppImage", "deb"], "category": "Office", "icon": "build/icons/icon.png" }
   }
 }
