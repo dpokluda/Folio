@@ -91,6 +91,33 @@ npm run dist:linux    # Linux (AppImage + deb)
 
 Build artifacts are written to `release/`.
 
+#### Linux packaging prerequisites
+
+On Linux, packaging the `.deb` and running the resulting `.AppImage` need a few
+system libraries that aren't always installed by default:
+
+- **`libcrypt.so.1`** — electron-builder's bundled [`fpm`](https://fpm.readthedocs.io/)
+  tool (used to build the `.deb`) links against the legacy `libcrypt.so.1`.
+  Without it, `npm run dist` fails with
+  *`ruby: error while loading shared libraries: libcrypt.so.1`*.
+- **`libfuse.so.2`** — AppImages need FUSE 2 to self-mount and run. Without it,
+  running the built AppImage prints *`AppImages require FUSE to run`*.
+
+Install them with your distribution's package manager:
+
+```sh
+# Fedora / RHEL
+sudo dnf install libxcrypt-compat fuse fuse-libs
+
+# Debian / Ubuntu
+sudo apt install libxcrypt1 libfuse2
+```
+
+If you only want the `.AppImage` and not the `.deb`, you can skip the build with
+`electron-builder --linux AppImage` (which needs neither of the above to build,
+only `libfuse.so.2` to *run* the result).
+
+
 #### App icon
 
 The app icon lives in `build/icons/` as an editable `icon.svg` (a light rounded

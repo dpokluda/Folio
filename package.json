@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "description": "A lightweight, themeable Markdown editor & viewer with a Typora-like look — edit the source, preview it rendered, swap CSS themes (Typora-theme compatible).",
   "main": "src/main.js",
-  "author": "David Pokluda",
+  "author": {
+    "name": "David Pokluda",
+    "email": "david@pokluda.cz"
+  },
   "license": "MIT",
   "homepage": "https://github.com/dpokluda/Folio",
   "repository": {
