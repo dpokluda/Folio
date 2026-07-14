@@ -60,7 +60,7 @@ function buildMenu({ isMac, styleFamily, appearance, pageWidth, recentFiles, act
     submenu: [
       { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => actions.newFile() },
       { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => actions.open() },
-      { label: 'Open Folder…', accelerator: 'CmdOrCtrl+Shift+K', click: () => actions.openFolder() },
+      { label: 'Open Folder…', accelerator: 'CmdOrCtrl+Shift+O', click: () => actions.openFolder() },
       { label: 'Open Recent', submenu: recentSubmenu },
       { type: 'separator' },
       { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => actions.save() },
@@ -102,7 +102,7 @@ function buildMenu({ isMac, styleFamily, appearance, pageWidth, recentFiles, act
       },
       {
         label: 'Toggle Outline',
-        accelerator: 'CmdOrCtrl+Shift+O',
+        accelerator: 'CmdOrCtrl+Shift+K',
         click: () => actions.toggleOutline(),
       },
       { type: 'separator' },

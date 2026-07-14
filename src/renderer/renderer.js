@@ -305,10 +305,7 @@ function setFolder(payload, show) {
     state.folder = { root: payload.root, name: payload.name };
     state.tree = payload.tree || [];
     state.expanded = new Set();
-    // Pre-expand top-level folders + the path down to the active file.
-    state.tree.forEach((n) => {
-      if (n.type === 'dir') state.expanded.add(n.path);
-    });
+    // Start collapsed; only expand the path down to the active file so it stays visible.
     expandAncestorsOf(state.path);
   }
   $filesTitle.textContent = state.folder ? state.folder.name : 'Files';

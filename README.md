@@ -203,7 +203,7 @@ Windows build.)
 
   You can also drop a file onto the app (or `Folio.exe`), or double-click a file associated
   with Folio. When launched with no file, Folio shows the welcome document.
-- **Open a folder** — `File ▸ Open Folder…` (`Ctrl/Cmd+Shift+K`) opens a **file explorer**
+- **Open a folder** — `File ▸ Open Folder…` (`Ctrl/Cmd+Shift+O`) opens a **file explorer**
   down the left side listing the Markdown files in that directory tree. Click a file to render
   it; the explorer highlights whatever's showing. Clicking a link from one document to another
   follows it in place, and a link that points at a folder opens that folder's `_index.md`
@@ -218,7 +218,7 @@ Windows build.)
   (Fluent, GitHub, Microsoft Word), an **Appearance** (Light, Dark) and a **Page width**
   (Dynamic, A4, US Letter). Both the preview and the source editor restyle instantly; your
   selection is remembered.
-- **Outline** — `View ▸ Toggle Outline` (`Ctrl/Cmd+Shift+O`), or the **Outline** button in
+- **Outline** — `View ▸ Toggle Outline` (`Ctrl/Cmd+Shift+K`), or the **Outline** button in
   the status bar, shows a headings sidebar.
 - **Save** — `Ctrl/Cmd+S` (Save As: `Ctrl/Cmd+Shift+S`). An unsaved document shows a `•` in
   the title bar and prompts before you close or open another file.
