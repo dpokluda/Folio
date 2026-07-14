@@ -32,14 +32,6 @@ function builtinDocPath(file) {
   return path.join(__dirname, '..', 'samples', file);
 }
 
-// file:// URL of a document's containing folder, used by the renderer as the
-// base for resolving relative asset paths (e.g. ![](images/foo.png)). Returns
-// null for untitled/builtin documents that have no on-disk location.
-function docBaseUrl(filePath) {
-  if (!filePath) return null;
-  return pathToFileURL(path.dirname(filePath) + path.sep).href;
-}
-
 // Built-in documents shown from the Help menu. Opened as *untitled* so they are
 // viewable and editable, but Save becomes Save As and never overwrites the
 // bundled copy.
@@ -296,7 +288,7 @@ async function loadFile(filePath) {
     currentName = path.basename(filePath);
     store.addRecent(filePath);
     setDirty(false);
-    send('load-document', { path: filePath, content, baseUrl: docBaseUrl(filePath) });
+    send('load-document', { path: filePath, content, baseUrl: pathToFileURL(filePath).href });
     rebuildMenu();
     updateTitle();
   } catch (err) {
@@ -368,7 +360,7 @@ async function doSaveAs() {
     store.addRecent(res.filePath);
     setDirty(false);
     send('saved');
-    send('document-path-changed', { path: res.filePath });
+    send('document-path-changed', { path: res.filePath, baseUrl: pathToFileURL(res.filePath).href });
     rebuildMenu();
     updateTitle();
     return true;
@@ -480,7 +472,7 @@ ipcMain.handle('get-init', () => {
       setDirty(false);
       rebuildMenu();
       updateTitle();
-      document = { path: target, content, name: currentName, baseUrl: docBaseUrl(target) };
+      document = { path: target, content, name: currentName, baseUrl: pathToFileURL(target).href };
     } catch (err) {
       dialog.showErrorBox('Folio — cannot open file', `${target}\n\n${err.message}`);
     }
@@ -488,12 +480,15 @@ ipcMain.handle('get-init', () => {
 
   if (!document) {
     let initialContent = '';
+    let baseUrl = null;
     try {
-      initialContent = fs.readFileSync(builtinDocPath('welcome.md'), 'utf8');
+      const welcomePath = builtinDocPath('welcome.md');
+      initialContent = fs.readFileSync(welcomePath, 'utf8');
+      baseUrl = pathToFileURL(welcomePath).href;
     } catch (_) {
       initialContent = '# Welcome to Folio\n\nCreate or open a Markdown file to get started.\n';
     }
-    document = { path: null, content: initialContent, name: 'Welcome' };
+    document = { path: null, content: initialContent, name: 'Welcome', baseUrl };
   }
 
   return {

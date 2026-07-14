@@ -56,7 +56,7 @@ const state = {
   dirty: false,
   themesBaseUrl: '',
   themeFiles: [],
-  docBaseUrl: null,
+  baseUrl: null, // file:// URL of the open document, used to resolve relative assets
 };
 
 let editor = null;
@@ -143,25 +143,30 @@ function renderPreview() {
   let html = md.render(body);
   if (frontMatter != null) html = renderFrontMatter(frontMatter) + html;
   $write.innerHTML = html;
-  resolveAssets();
+  resolveLocalAssets();
   wireLinks();
   buildOutline();
   updateStats();
 }
 
-// Resolve relative asset paths (images) against the open document's folder so
-// they load from disk — the renderer's own origin is the app bundle, not the
-// document. Absolute URLs (http(s), file, data, blob) are left untouched.
-function resolveAssets() {
-  const base = state.docBaseUrl;
-  if (!base) return;
+// Rewrite relative asset URLs (e.g. `docs/folio.png`) so they resolve against
+// the *opened document's* folder rather than the app's renderer directory.
+// Without this, relative <img> paths 404 because the window is loaded from
+// src/renderer/index.html. Absolute, remote (http/https), data:, blob:, and
+// already-file: URLs are left untouched.
+function resolveLocalAssets() {
+  if (!state.baseUrl) return;
   $write.querySelectorAll('img[src]').forEach((img) => {
     const src = img.getAttribute('src') || '';
-    if (!src || /^(?:[a-z]+:|\/\/|#)/i.test(src)) return;
+    // Skip anchors and anything that already carries a URL scheme or is
+    // protocol-relative (`//host/...`).
+    if (!src || src.startsWith('#') || src.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(src)) {
+      return;
+    }
     try {
-      img.src = new URL(src, base).href;
+      img.setAttribute('src', new URL(src, state.baseUrl).href);
     } catch (_) {
-      /* leave as-is */
+      /* leave the original src in place */
     }
   });
 }
@@ -333,7 +338,7 @@ function markSaved() {
 // ---------------------------------------------------------------------------
 function loadDocument(doc) {
   state.path = doc.path || null;
-  state.docBaseUrl = doc.baseUrl || null;
+  state.baseUrl = doc.baseUrl || null;
   state.docText = doc.content || '';
   state.savedText = state.docText;
   state.dirty = false;
@@ -433,6 +438,8 @@ async function boot() {
   window.folioAPI.onSaved(() => markSaved());
   window.folioAPI.onDocumentPathChanged((info) => {
     state.path = info && info.path;
+    if (info && info.baseUrl) state.baseUrl = info.baseUrl;
+    if (!state.sourceMode) renderPreview();
   });
 }
 
