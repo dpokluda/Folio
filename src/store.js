@@ -5,7 +5,11 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULTS = {
-  theme: 'fluent.css',
+  // Three-axis theming: a Style family, an Appearance, and a Page width are
+  // composed at runtime into a stack of theme stylesheets.
+  styleFamily: 'fluent', // 'fluent' | 'github' | 'word'
+  appearance: 'light', // 'light' | 'dark'
+  pageWidth: 'dynamic', // 'dynamic' | 'a4' | 'letter'
   recentFiles: [],
   window: { width: 1100, height: 820 },
   sourceMode: false,
@@ -15,6 +19,16 @@ const DEFAULTS = {
 
 const MAX_RECENT = 10;
 
+// Map a legacy single-file `theme` setting (e.g. "microsoft-word-a4.css") onto
+// the new three-axis model, so users upgrading keep a sensible selection.
+function migrateLegacyTheme(parsed) {
+  if (!parsed || parsed.styleFamily || typeof parsed.theme !== 'string') return null;
+  const t = parsed.theme.toLowerCase();
+  const styleFamily = t.includes('word') ? 'word' : t.includes('github') ? 'github' : 'fluent';
+  const pageWidth = t.includes('letter') ? 'letter' : t.includes('a4') ? 'a4' : 'dynamic';
+  return { styleFamily, appearance: 'light', pageWidth };
+}
+
 class Store {
   constructor() {
     this.file = path.join(app.getPath('userData'), 'folio-settings.json');
@@ -22,8 +36,11 @@ class Store {
     try {
       if (fs.existsSync(this.file)) {
         const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-        this.data = { ...DEFAULTS, ...parsed };
+        const migrated = migrateLegacyTheme(parsed);
+        this.data = { ...DEFAULTS, ...parsed, ...(migrated || {}) };
         this.data.window = { ...DEFAULTS.window, ...(parsed.window || {}) };
+        delete this.data.theme; // drop the obsolete key
+        if (migrated) this._flush(); // persist the one-time migration
       }
     } catch (err) {
       console.error('[folio] failed to read settings, using defaults:', err);

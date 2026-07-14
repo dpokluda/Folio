@@ -57,11 +57,11 @@ body {
 /* --- Text weight compensation -------------------------------------------
    Folio runs a modern Chromium (Electron 31) that renders the theme's body
    font (Inter) noticeably lighter than Typora's older Chromium: same font,
-   same size, but measurably less ink coverage and lighter glyph edges
-   (~0.20 vs Typora's ~0.23 ink density in side-by-side captures). A hairline
-   same-colour text stroke on the rendered content restores the heavier,
-   easier-to-read weight Typora shows, without changing the font, size, or
-   layout. Tune to taste: 0 disables it, ~0.3px is heavier still. */
+   same size, but measurably less ink coverage and lighter glyph edges in
+   side-by-side captures. A hairline same-colour text stroke on the rendered
+   content restores a little of the heavier, easier-to-read weight Typora
+   shows, without changing the font, size, or layout. Tune to taste: 0
+   disables it, ~0.3px is heavier still. */
 #write {
   -webkit-text-stroke: 0.15px currentColor;
 }
@@ -277,3 +277,67 @@ body {
 .hljs-strong { font-weight: 700; }
 .hljs-deletion { color: #b31d28; background: #ffeef0; }
 .hljs-addition { background: #f0fff4; }
+
+/* ==========================================================================
+   Dark appearance.
+
+   Folio flips prefers-color-scheme via Electron's nativeTheme when the user
+   picks Appearance ▸ Dark. The Typora themes carry their own dark palettes,
+   but Folio's own chrome (outline, status bar) and the highlight.js token
+   colours above are NOT theme-controlled, so they need explicit dark
+   treatment here to sit with the dark themes.
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  /* --- outline sidebar --- */
+  #folio-outline {
+    background: #17181b;
+    border-right-color: #2a2c30;
+    color: #c7cad0;
+  }
+  .folio-outline-title { color: #7b818b; }
+  .outline-item { color: #b7bcc4; }
+  .outline-item:hover { background: #24262b; color: #f0f1f3; }
+  .outline-h6 { color: #8b919b; }
+
+  /* --- status bar --- */
+  #folio-statusbar {
+    background: #17181b;
+    border-top-color: #2a2c30;
+    color: #9aa0aa;
+  }
+  .folio-status-btn:hover { background: #26282e; color: #eef0f3; }
+  .folio-status-btn.active { background: #2b3350; color: #9db4ff; }
+
+  /* --- source editor selection --- */
+  #typora-source .cm-selectionBackground,
+  #typora-source .cm-content ::selection { background: rgba(90, 140, 230, 0.30); }
+
+  /* --- highlight.js: GitHub-dark palette --- */
+  .hljs-comment,
+  .hljs-quote { color: #8b949e; }
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-type,
+  .hljs-doctag { color: #ff7b72; }
+  .hljs-string,
+  .hljs-regexp,
+  .hljs-meta-string { color: #a5d6ff; }
+  .hljs-number,
+  .hljs-literal,
+  .hljs-variable,
+  .hljs-template-variable,
+  .hljs-attr,
+  .hljs-attribute { color: #79c0ff; }
+  .hljs-title,
+  .hljs-section,
+  .hljs-name,
+  .hljs-selector-id,
+  .hljs-selector-class { color: #d2a8ff; }
+  .hljs-built_in,
+  .hljs-builtin-name,
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-link { color: #ffa657; }
+  .hljs-deletion { color: #ffdcd7; background: #67060c; }
+  .hljs-addition { color: #aff5b4; background: #033a16; }
+}

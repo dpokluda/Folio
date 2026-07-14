@@ -55,6 +55,7 @@ const state = {
   zoom: 0, // integer steps of 10%
   dirty: false,
   themesBaseUrl: '',
+  themeFiles: [],
 };
 
 let editor = null;
@@ -66,7 +67,6 @@ const $preview = document.getElementById('folio-preview');
 const $source = document.getElementById('typora-source');
 const $outline = document.getElementById('folio-outline');
 const $outlineList = document.getElementById('folio-outline-list');
-const $themeLink = document.getElementById('theme-style');
 const $stats = document.getElementById('folio-stats');
 const $btnOutline = document.getElementById('btn-outline');
 const $btnSource = document.getElementById('btn-source');
@@ -253,10 +253,25 @@ function zoom(delta) {
 // ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
-function applyTheme(themeFile) {
-  if (!themeFile) return;
-  state.theme = themeFile;
-  $themeLink.href = state.themesBaseUrl + themeFile;
+// The active theme is composed of an ordered stack of stylesheets (base
+// foundation → family overlay → width overlay). They are mounted as <link>
+// elements appended after app.css so the theme wins on shared selectors and
+// later layers override earlier ones. Appearance (light/dark) is handled by
+// the main process via nativeTheme, which the stylesheets react to through
+// their @media (prefers-color-scheme: dark) blocks — no work needed here.
+function applyTheme(payload) {
+  const files = Array.isArray(payload) ? payload : payload && payload.files;
+  if (!files || !files.length) return;
+  state.themeFiles = files;
+
+  document.querySelectorAll('link.folio-theme').forEach((l) => l.remove());
+  for (const file of files) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.className = 'folio-theme';
+    link.href = state.themesBaseUrl + file;
+    document.head.appendChild(link);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -356,7 +371,7 @@ async function boot() {
   const init = await window.folioAPI.getInit();
   state.themesBaseUrl = init.themesBaseUrl;
 
-  applyTheme(init.theme || (init.themes && init.themes[0]));
+  applyTheme(init.themeFiles);
 
   const s = init.settings || {};
   state.zoom = typeof s.zoom === 'number' ? s.zoom : 0;

@@ -1,21 +1,9 @@
 // Builds the native application menu template.
 const path = require('path');
 
-// "fluent-a4.css" -> "Fluent A4" ; "microsoft-word-us-letter.css" -> "Microsoft Word US Letter"
-function titleCaseTheme(filename) {
-  const base = filename.replace(/\.css$/i, '');
-  return base
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((word) => {
-      const upper = word.toUpperCase();
-      if (['A4', 'US', 'PDF'].includes(upper)) return upper;
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(' ');
-}
-
-function buildMenu({ isMac, themes, activeTheme, recentFiles, actions }) {
+// "fluent" -> "Fluent", "word" -> "Microsoft Word" — the Style family radio
+// group uses explicit labels below.
+function buildMenu({ isMac, styleFamily, appearance, pageWidth, recentFiles, actions }) {
   const recentSubmenu =
     recentFiles && recentFiles.length
       ? [
@@ -29,14 +17,24 @@ function buildMenu({ isMac, themes, activeTheme, recentFiles, actions }) {
         ]
       : [{ label: '(No recent files)', enabled: false }];
 
-  const themeSubmenu = themes.length
-    ? themes.map((file) => ({
-        label: titleCaseTheme(file),
-        type: 'radio',
-        checked: file === activeTheme,
-        click: () => actions.setTheme(file),
-      }))
-    : [{ label: '(No themes found)', enabled: false }];
+  // Themes: three orthogonal one-of choices — Style, Appearance, Page width.
+  // Disabled header rows also break Electron's implicit radio grouping so each
+  // block toggles independently.
+  const themeSubmenu = [
+    { label: 'Style', enabled: false },
+    { label: 'Fluent', type: 'radio', checked: styleFamily === 'fluent', click: () => actions.setStyleFamily('fluent') },
+    { label: 'GitHub', type: 'radio', checked: styleFamily === 'github', click: () => actions.setStyleFamily('github') },
+    { label: 'Microsoft Word', type: 'radio', checked: styleFamily === 'word', click: () => actions.setStyleFamily('word') },
+    { type: 'separator' },
+    { label: 'Appearance', enabled: false },
+    { label: 'Light', type: 'radio', checked: appearance !== 'dark', click: () => actions.setAppearance('light') },
+    { label: 'Dark', type: 'radio', checked: appearance === 'dark', click: () => actions.setAppearance('dark') },
+    { type: 'separator' },
+    { label: 'Page Width', enabled: false },
+    { label: 'Dynamic', type: 'radio', checked: pageWidth === 'dynamic', click: () => actions.setPageWidth('dynamic') },
+    { label: 'A4', type: 'radio', checked: pageWidth === 'a4', click: () => actions.setPageWidth('a4') },
+    { label: 'US Letter', type: 'radio', checked: pageWidth === 'letter', click: () => actions.setPageWidth('letter') },
+  ];
 
   const template = [];
 
@@ -128,4 +126,4 @@ function buildMenu({ isMac, themes, activeTheme, recentFiles, actions }) {
   return template;
 }
 
-module.exports = { buildMenu, titleCaseTheme };
+module.exports = { buildMenu };

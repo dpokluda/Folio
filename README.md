@@ -33,8 +33,9 @@ the CSS themes I already use "just work."
   container, so Typora themes style it as a page/sheet.
 - **Themed source-code editor** (CodeMirror 6) under `#typora-source`, so a selected theme
   styles the editor too — including the grey-bar-free source-mode background.
-- **Typora-compatible theming**: pick any top-level `.css` file in the `themes/` folder from
-  the **Themes** menu; the active theme is remembered.
+- **Typora-compatible theming** on three independent axes — **Style** (Fluent, GitHub,
+  Microsoft Word), **Appearance** (Light, Dark) and **Page width** (Dynamic, A4, US Letter) —
+  chosen from the **Themes** menu and remembered between launches.
 - **Live features** via [markdown-it](https://github.com/markdown-it/markdown-it): tables,
   strikethrough, task lists, footnotes, autolinking, typographic replacements, and emoji.
 - **Syntax highlighting** of fenced code blocks with
@@ -57,9 +58,11 @@ Folio deliberately mirrors Typora's DOM so existing themes render faithfully:
   `.CodeMirror` compatibility class so `#typora-source .CodeMirror*` theme rules apply.
 - The body gets the class **`typora-sourceview-on`** in source mode (themes key the white
   source-mode background off this).
-- Themes are switched by swapping a single stylesheet `<link href>`; `@import` chains,
-  `@font-face`, and window-width `@media` breakpoints all work because the renderer is
-  Chromium.
+- Themes are composed from a small stack of stylesheets (base foundation → style overlay →
+  page-width overlay) swapped via `<link href>`; `@import` chains, `@font-face`, and
+  window-width `@media` breakpoints all work because the renderer is Chromium. **Dark mode**
+  is applied by flipping Chromium's `prefers-color-scheme` (through Electron's `nativeTheme`),
+  which activates the dark palettes the theme stylesheets carry.
 
 ---
 
@@ -168,14 +171,16 @@ Windows build.)
 - **Toggle source mode** — `View ▸ Toggle Source Code Mode` (`Ctrl/Cmd+/`), or the
   **`</>` Source** button in the status bar. The themed CodeMirror editor appears; toggle
   back (the button reads **Exit Source**) to re-render the preview.
-- **Switch themes** — pick any theme from the **Themes** menu. Both the preview and the
-  source editor restyle instantly; your choice is remembered.
+- **Switch themes** — the **Themes** menu offers three independent choices: a **Style**
+  (Fluent, GitHub, Microsoft Word), an **Appearance** (Light, Dark) and a **Page width**
+  (Dynamic, A4, US Letter). Both the preview and the source editor restyle instantly; your
+  selection is remembered.
 - **Outline** — `View ▸ Toggle Outline` (`Ctrl/Cmd+Shift+O`), or the **Outline** button in
   the status bar, shows a headings sidebar.
 - **Save** — `Ctrl/Cmd+S` (Save As: `Ctrl/Cmd+Shift+S`). An unsaved document shows a `•` in
   the title bar and prompts before you close or open another file.
-- **Export to PDF** — `File ▸ Export to PDF…`. The page size follows the active theme (A4 vs
-  US Letter).
+- **Export to PDF** — `File ▸ Export to PDF…`. The page size follows the active **Page width**
+  (A4 vs US Letter).
 - **Zoom** — `Ctrl/Cmd +` / `Ctrl/Cmd -` / `Ctrl/Cmd 0`.
 - **Find** — `Ctrl/Cmd+F` (in source mode).
 
@@ -183,32 +188,42 @@ Windows build.)
 
 ## Themes
 
-Folio ships a `themes/` folder. The **Themes** menu lists **only the top-level `.css` files**
-in that folder (non-recursive) — exactly like Typora. Subfolders such as `microsoft-word/`
-(and its `fonts/`) are treated as **assets**, not selectable themes. Filenames are
-title-cased for display (e.g. `fluent-a4.css` → "Fluent A4").
+The **Themes** menu is organised as three independent, one-of choices that combine into the
+active look:
 
-**Bundled themes** (a personal Typora setup):
+| Axis           | Options                              | What it controls                                   |
+| -------------- | ----------------------------------- | -------------------------------------------------- |
+| **Style**      | Fluent · GitHub · Microsoft Word    | Fonts, colours and heading treatment               |
+| **Appearance** | Light · Dark                        | Light or dark palette (whole app, including chrome) |
+| **Page width** | Dynamic · A4 · US Letter            | The writing column: window-filling or a fixed sheet |
 
-| Theme file                     | Menu label                | Notes                              |
-| ------------------------------ | ------------------------- | ---------------------------------- |
-| `fluent.css`                   | Fluent                    | Base Fluent theme                  |
-| `fluent-a4.css`                | Fluent A4                 | Fixed A4 "printed page"            |
-| `fluent-us-letter.css`         | Fluent US Letter          | Fixed US Letter page               |
-| `fluent-dynamic.css`           | Fluent Dynamic            | Width follows the window           |
-| `microsoft-word-a4.css`        | Microsoft Word A4         | Word/Aptos look, A4 page           |
-| `microsoft-word-us-letter.css` | Microsoft Word US Letter  | Word/Aptos look, US Letter         |
-| `microsoft-word-dynamic.css`   | Microsoft Word Dynamic    | Word/Aptos look, dynamic width     |
+That's 3 × 2 × 3 = 18 combinations from a handful of small stylesheets, rather than 18
+separate theme files. Your selection is remembered between launches.
 
-The `microsoft-word/` subfolder holds the shared partials (`word-type.css`,
-`word-page-*.css`) that those themes `@import`.
+**How it's composed.** Folio ships a `themes/` folder and builds each look at runtime by
+layering a few stylesheets — a base foundation, a **Style** overlay, then a **Page-width**
+overlay — mounted as `<link class="folio-theme">` elements (later layers win):
+
+| File                                   | Role                                                        |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `fluent.css`                           | Base foundation (structure + the Fluent palette)            |
+| `github.css`                           | GitHub (Primer) **Style** overlay                           |
+| `microsoft-word/word-type.css`         | Microsoft Word (Aptos) **Style** overlay                    |
+| `fluent-a4.css` / `-us-letter` / `-dynamic` | **Page-width** overlays for Fluent & GitHub            |
+| `microsoft-word/word-page-*.css`       | **Page-width** overlays for Microsoft Word                  |
+
+**Appearance** is not a file swap: Folio flips Chromium's `prefers-color-scheme` via
+Electron's `nativeTheme`, so every layer's `@media (prefers-color-scheme: dark)` block (and
+Folio's own chrome + syntax colours) switches to its dark palette together.
 
 ### Add your own Typora themes
 
-Drop any Typora-style theme's `.css` file into `themes/` (put its assets in a subfolder if it
-has any) and restart Folio — it will appear in the **Themes** menu. Because Folio honors the
-Typora DOM contract (`#write`, `#typora-source .CodeMirror`, `typora-sourceview-on`), most
-Typora themes work unchanged.
+Folio honors the Typora DOM contract (`#write`, `#typora-source .CodeMirror`,
+`typora-sourceview-on`), so most Typora themes work unchanged. To add one as a new **Style**,
+drop its `.css` (and any asset subfolder) into `themes/`, then register it as a family in
+`src/main.js` (`familyLayers` / the `STYLE_FAMILIES` list) and add a radio entry in
+`src/menu.js`. Giving the theme `@media (prefers-color-scheme: dark)` variables makes it
+Dark-aware automatically.
 
 ### ⚠️ A note about the Aptos fonts (Microsoft Word themes)
 

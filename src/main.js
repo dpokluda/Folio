@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, nativeTheme } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -50,17 +50,60 @@ function appIconPath() {
   return fs.existsSync(p) ? p : undefined;
 }
 
-function listThemes() {
-  try {
-    return fs
-      .readdirSync(themesDir(), { withFileTypes: true })
-      .filter((d) => d.isFile() && d.name.toLowerCase().endsWith('.css'))
-      .map((d) => d.name)
-      .sort((a, b) => a.localeCompare(b));
-  } catch (err) {
-    console.error('[folio] cannot read themes dir:', err);
-    return [];
+// ---------------------------------------------------------------------------
+// Three-axis theming: Style family × Appearance × Page width.
+//
+// A selection is composed at runtime into an ordered stack of theme
+// stylesheets (base foundation → family overlay → width overlay). Appearance
+// (light/dark) is handled separately by flipping Chromium's prefers-color-
+// scheme through Electron's nativeTheme, which activates the dark palettes the
+// theme stylesheets already carry behind @media (prefers-color-scheme: dark).
+// ---------------------------------------------------------------------------
+const STYLE_FAMILIES = ['fluent', 'github', 'word'];
+const APPEARANCES = ['light', 'dark'];
+const PAGE_WIDTHS = ['dynamic', 'a4', 'letter'];
+
+function familyLayers(family) {
+  switch (family) {
+    case 'github':
+      return ['fluent.css', 'github.css'];
+    case 'word':
+      return ['fluent.css', 'microsoft-word/word-type.css'];
+    case 'fluent':
+    default:
+      return ['fluent.css'];
   }
+}
+
+function widthLayer(family, width) {
+  if (family === 'word') {
+    const map = {
+      a4: 'microsoft-word/word-page-a4.css',
+      letter: 'microsoft-word/word-page-letter.css',
+      dynamic: 'microsoft-word/word-page-dynamic.css',
+    };
+    return map[width] || map.dynamic;
+  }
+  const map = {
+    a4: 'fluent-a4.css',
+    letter: 'fluent-us-letter.css',
+    dynamic: 'fluent-dynamic.css',
+  };
+  return map[width] || map.dynamic;
+}
+
+// Ordered list of theme CSS files (relative to themesDir) for the current
+// Style + Page-width selection. Later files override earlier ones.
+function composeThemeFiles() {
+  const family = STYLE_FAMILIES.includes(store.get('styleFamily'))
+    ? store.get('styleFamily')
+    : 'fluent';
+  const width = PAGE_WIDTHS.includes(store.get('pageWidth')) ? store.get('pageWidth') : 'dynamic';
+  return [...familyLayers(family), widthLayer(family, width)];
+}
+
+function applyAppearance() {
+  nativeTheme.themeSource = store.get('appearance') === 'dark' ? 'dark' : 'light';
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +149,7 @@ function createWindow() {
 
   rebuildMenu();
   updateTitle();
+  applyAppearance();
 }
 
 function persistWindowBounds() {
@@ -131,12 +175,18 @@ function setDirty(value) {
 function rebuildMenu() {
   const template = buildMenu({
     isMac: process.platform === 'darwin',
-    themes: listThemes(),
-    activeTheme: store.get('theme'),
+    styleFamily: store.get('styleFamily'),
+    appearance: store.get('appearance'),
+    pageWidth: store.get('pageWidth'),
     recentFiles: store.get('recentFiles') || [],
     actions,
   });
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// Push the composed theme stack to the renderer.
+function pushTheme() {
+  send('set-theme', { files: composeThemeFiles() });
 }
 
 const actions = {
@@ -156,9 +206,19 @@ const actions = {
   zoomOut: () => send('command', { name: 'zoom-out' }),
   zoomReset: () => send('command', { name: 'zoom-reset' }),
   find: () => send('command', { name: 'find' }),
-  setTheme: (themeFile) => {
-    store.set('theme', themeFile);
-    send('set-theme', themeFile);
+  setStyleFamily: (family) => {
+    store.set('styleFamily', family);
+    pushTheme();
+    rebuildMenu();
+  },
+  setAppearance: (appearance) => {
+    store.set('appearance', appearance);
+    applyAppearance();
+    rebuildMenu();
+  },
+  setPageWidth: (width) => {
+    store.set('pageWidth', width);
+    pushTheme();
     rebuildMenu();
   },
   about: () => showAbout(),
@@ -310,10 +370,8 @@ async function doSaveAs() {
   }
 }
 
-function pageSizeForTheme() {
-  const theme = (store.get('theme') || '').toLowerCase();
-  if (theme.includes('letter')) return 'Letter';
-  return 'A4'; // a4, dynamic, and base all print nicely on A4
+function pageSizeForWidth() {
+  return store.get('pageWidth') === 'letter' ? 'Letter' : 'A4';
 }
 
 async function doExportPDF() {
@@ -333,7 +391,7 @@ async function doExportPDF() {
 
   try {
     const data = await mainWindow.webContents.printToPDF({
-      pageSize: pageSizeForTheme(),
+      pageSize: pageSizeForWidth(),
       printBackground: true,
       margins: { marginType: 'default' },
     });
@@ -432,8 +490,7 @@ ipcMain.handle('get-init', () => {
 
   return {
     themesBaseUrl: pathToFileURL(themesDir() + path.sep).href,
-    themes: listThemes(),
-    theme: store.get('theme'),
+    themeFiles: composeThemeFiles(),
     settings: {
       sourceMode: store.get('sourceMode'),
       outlineVisible: store.get('outlineVisible'),

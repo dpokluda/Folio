@@ -10,8 +10,8 @@
 
     <!-- App chrome + CodeMirror compatibility layer (loaded first so the theme wins on shared selectors). -->
     <link rel="stylesheet" href="app.css" />
-    <!-- Active Typora-compatible theme; href is set at runtime and swapped by the Themes menu. -->
-    <link id="theme-style" rel="stylesheet" href="" />
+    <!-- The active Typora-compatible theme is a stack of <link class="folio-theme">
+         elements appended here at runtime (base + family + width overlays). -->
   </head>
   <body>
     <div id="folio-root">

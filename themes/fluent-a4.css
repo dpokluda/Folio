@@ -5,10 +5,10 @@
    A4-sized sheet (210mm ≈ 794px @96dpi), rendered as a white page floating
    on a soft grey backdrop — similar to a Word print view.
 
-   Requires `fluent.css` to live in the SAME folder (Typora themes folder).
+   Width overlay: Folio loads the base `fluent.css` separately (as its own
+   <link>) and then this partial on top, so no @import is needed here — this
+   file only sets the A4 page geometry, the sheet look and the compact type.
    ========================================================================== */
-
-@import url('fluent.css');
 
 /* --- backdrop behind the page ------------------------------------------- */
 :root {
@@ -75,4 +75,23 @@ html {
    (Base Fluent caps it at 1024px; unconstrain it here.)                     */
 #typora-source .CodeMirror-lines {
     max-width: none;
+}
+
+/* --- dark appearance ----------------------------------------------------- */
+/* Folio flips prefers-color-scheme via Electron's nativeTheme when the user
+   picks Appearance ▸ Dark. Base Fluent already swaps its palette dark; here
+   we only need to darken the grey backdrop and the white paper sheet.        */
+@media (prefers-color-scheme: dark) {
+    :root { --bg-color: #0a0b0d; }
+    #write {
+        background: #17181b;
+        box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.5),
+            0 10px 28px rgba(0, 0, 0, 0.5);
+    }
+    table tbody tr:nth-child(2n+1) { background-color: #1c1e22; }
+    .typora-sourceview-on { --bg-color: #0f1012; background-color: #0f1012; }
+    #typora-source,
+    #typora-source .CodeMirror,
+    #typora-source .CodeMirror-gutters { background-color: #0f1012; }
 }
