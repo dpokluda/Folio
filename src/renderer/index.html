@@ -34,6 +34,20 @@
 
           <!-- Source editor. CodeMirror 6 mounts here; themes target #typora-source .CodeMirror*. -->
           <div id="typora-source" hidden></div>
+
+          <!-- In-preview find bar (rendered mode). Uses the CSS Custom Highlight
+               API to mark matches inside #write without mutating the DOM. -->
+          <div id="folio-find" hidden role="search" aria-label="Find in page">
+            <input id="folio-find-input" type="text" placeholder="Find"
+              aria-label="Find" spellcheck="false" autocomplete="off" />
+            <span id="folio-find-count" class="folio-find-count" aria-live="polite"></span>
+            <button id="folio-find-prev" class="folio-find-btn" type="button"
+              title="Previous match (Shift+Enter)" aria-label="Previous match">&#8593;</button>
+            <button id="folio-find-next" class="folio-find-btn" type="button"
+              title="Next match (Enter)" aria-label="Next match">&#8595;</button>
+            <button id="folio-find-close" class="folio-find-btn" type="button"
+              title="Close (Esc)" aria-label="Close find">&#10005;</button>
+          </div>
         </div>
 
         <!-- Status bar: mode toggles + live document stats. -->
@@ -44,7 +58,7 @@
               <span class="folio-ico">&#128193;</span><span>Files</span>
             </button>
             <button id="btn-outline" class="folio-status-btn" type="button"
-              title="Toggle Outline (Ctrl/Cmd+Shift+O)">
+              title="Toggle Outline (Ctrl/Cmd+Shift+K)">
               <span class="folio-ico">&#9776;</span><span>Outline</span>
             </button>
             <button id="btn-source" class="folio-status-btn" type="button"

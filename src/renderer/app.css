@@ -103,6 +103,76 @@ body {
   display: none;
 }
 
+/* --- in-preview find bar ------------------------------------------------- */
+#folio-find {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #d8dce1;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  font-size: 13px;
+}
+#folio-find[hidden] {
+  display: none;
+}
+#folio-find-input {
+  width: 200px;
+  padding: 4px 8px;
+  border: 1px solid #d0d4d9;
+  border-radius: 5px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 13px;
+  outline: none;
+}
+#folio-find-input:focus {
+  border-color: #4a90e2;
+}
+.folio-find-count {
+  min-width: 40px;
+  text-align: right;
+  color: #6a737d;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.folio-find-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #4a4a4a;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.folio-find-btn:hover {
+  background: #eef1f5;
+}
+
+/* Matches are highlighted via the CSS Custom Highlight API (no DOM mutation),
+   so they survive re-render/theme swaps and never disturb layout. */
+::highlight(folio-find) {
+  background-color: #ffe58a;
+  color: inherit;
+}
+::highlight(folio-find-current) {
+  background-color: #ff9a3d;
+  color: #1a1a1a;
+}
+
+
 /* CodeMirror 6 elements are made transparent so the theme background shows
    through, mirroring how Typora's themes expect a transparent editor. */
 #typora-source .cm-editor {
@@ -436,6 +506,30 @@ body {
   }
   .folio-status-btn:hover { background: #26282e; color: #eef0f3; }
   .folio-status-btn.active { background: #2b3350; color: #9db4ff; }
+
+  /* --- in-preview find bar --- */
+  #folio-find {
+    background: #1f2125;
+    border-color: #34373d;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+  #folio-find-input {
+    background: #17181b;
+    border-color: #34373d;
+    color: #e6e8eb;
+  }
+  #folio-find-input:focus { border-color: #5a8ce6; }
+  .folio-find-count { color: #8b919b; }
+  .folio-find-btn { color: #c3c8d0; }
+  .folio-find-btn:hover { background: #2a2d33; }
+  ::highlight(folio-find) {
+    background-color: #6b5a1e;
+    color: #f3f0e6;
+  }
+  ::highlight(folio-find-current) {
+    background-color: #c9701f;
+    color: #1a1a1a;
+  }
 
   /* --- source editor selection --- */
   #typora-source .cm-selectionBackground,

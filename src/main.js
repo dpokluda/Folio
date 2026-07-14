@@ -168,7 +168,7 @@ function persistWindowBounds() {
 function updateTitle() {
   if (!mainWindow) return;
   const base = currentPath ? path.basename(currentPath) : currentName || 'Untitled';
-  mainWindow.setTitle(`${isDirty ? '\u2022 ' : ''}${base} — Folio`);
+  mainWindow.setTitle(`${isDirty ? '\u2022 ' : ''}${base} - Folio`);
 }
 
 function setDirty(value) {

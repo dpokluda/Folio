@@ -62,6 +62,7 @@ const state = {
   expanded: new Set(), // paths of expanded dirs
   filesVisible: false,
   pendingAnchor: null, // heading to scroll to after the next preview render
+  find: { open: false, query: '', matches: [], index: -1 }, // in-preview find
 };
 
 let editor = null;
@@ -81,6 +82,12 @@ const $btnOutline = document.getElementById('btn-outline');
 const $btnFiles = document.getElementById('btn-files');
 const $btnSource = document.getElementById('btn-source');
 const $btnSourceLabel = document.getElementById('btn-source-label');
+const $find = document.getElementById('folio-find');
+const $findInput = document.getElementById('folio-find-input');
+const $findCount = document.getElementById('folio-find-count');
+const $findPrev = document.getElementById('folio-find-prev');
+const $findNext = document.getElementById('folio-find-next');
+const $findClose = document.getElementById('folio-find-close');
 
 // ---------------------------------------------------------------------------
 // CodeMirror editor
@@ -156,6 +163,8 @@ function renderPreview() {
   wireLinks();
   buildOutline();
   updateStats();
+  // Old match ranges point into the replaced DOM; recompute if find is open.
+  if (state.find.open) runFind(state.find.query);
 }
 
 // Rewrite relative asset URLs (e.g. `docs/folio.png`) so they resolve against
@@ -444,6 +453,7 @@ function setSourceMode(on) {
   if (on) {
     if (!editor) createEditor(state.docText);
     else setEditorText(state.docText);
+    if (state.find.open) closeFindBar();
     $preview.hidden = true;
     $source.hidden = false;
     // CM needs a measure once it becomes visible.
@@ -467,6 +477,113 @@ function setOutlineVisible(on) {
   updateStatusButtons();
   persistState();
 }
+
+// ---------------------------------------------------------------------------
+// Find in preview (rendered mode)
+// ---------------------------------------------------------------------------
+// Uses the CSS Custom Highlight API: matches are marked with Range objects
+// registered under ::highlight(folio-find[-current]) instead of mutating the
+// DOM, so highlights never disturb layout and are trivially cleared on
+// re-render. Falls back gracefully (no highlight, just no-op) if unsupported.
+const HIGHLIGHT_SUPPORTED =
+  typeof window.Highlight === 'function' && window.CSS && CSS.highlights;
+
+function openFindBar(initialQuery) {
+  $find.hidden = false;
+  state.find.open = true;
+  if (typeof initialQuery === 'string' && initialQuery) $findInput.value = initialQuery;
+  $findInput.focus();
+  $findInput.select();
+  runFind($findInput.value);
+}
+
+function closeFindBar() {
+  $find.hidden = true;
+  state.find.open = false;
+  clearFindHighlights();
+  if (!state.sourceMode) $preview.focus?.();
+}
+
+function clearFindHighlights() {
+  if (HIGHLIGHT_SUPPORTED) {
+    CSS.highlights.delete('folio-find');
+    CSS.highlights.delete('folio-find-current');
+  }
+  state.find.matches = [];
+  state.find.index = -1;
+}
+
+function findRangesIn(root, query) {
+  const q = query.toLowerCase();
+  const ranges = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      node.nodeValue && node.nodeValue.trim()
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT,
+  });
+  let node;
+  while ((node = walker.nextNode())) {
+    const text = node.nodeValue.toLowerCase();
+    let idx = text.indexOf(q);
+    while (idx !== -1) {
+      const range = document.createRange();
+      range.setStart(node, idx);
+      range.setEnd(node, idx + q.length);
+      ranges.push(range);
+      idx = text.indexOf(q, idx + q.length);
+    }
+  }
+  return ranges;
+}
+
+function runFind(query) {
+  clearFindHighlights();
+  state.find.query = query;
+  if (!query) {
+    updateFindCount();
+    return;
+  }
+  const ranges = HIGHLIGHT_SUPPORTED ? findRangesIn($write, query) : [];
+  state.find.matches = ranges;
+  if (ranges.length) {
+    CSS.highlights.set('folio-find', new Highlight(...ranges));
+    setCurrentMatch(0, true);
+  } else {
+    updateFindCount();
+  }
+}
+
+function setCurrentMatch(i, scroll) {
+  state.find.index = i;
+  const cur = state.find.matches[i];
+  if (HIGHLIGHT_SUPPORTED) {
+    CSS.highlights.delete('folio-find-current');
+    if (cur) {
+      const h = new Highlight(cur);
+      h.priority = 1; // paint the current match on top of the plain matches
+      CSS.highlights.set('folio-find-current', h);
+    }
+  }
+  if (cur && scroll) {
+    const el = cur.startContainer.parentElement;
+    if (el) el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }
+  updateFindCount();
+}
+
+function findStep(dir) {
+  const n = state.find.matches.length;
+  if (!n) return;
+  setCurrentMatch((state.find.index + dir + n) % n, true);
+}
+
+function updateFindCount() {
+  const n = state.find.matches.length;
+  if (n) $findCount.textContent = `${state.find.index + 1}/${n}`;
+  else $findCount.textContent = state.find.query ? '0/0' : '';
+}
+
 
 // ---------------------------------------------------------------------------
 // Zoom
@@ -590,8 +707,11 @@ function handleCommand(name) {
       zoom(0);
       break;
     case 'find':
-      if (!state.sourceMode) setSourceMode(true);
-      requestAnimationFrame(() => editor && openSearchPanel(editor));
+      if (state.sourceMode) {
+        requestAnimationFrame(() => editor && openSearchPanel(editor));
+      } else {
+        openFindBar();
+      }
       break;
     default:
       break;
@@ -641,6 +761,27 @@ async function boot() {
   $btnSource.addEventListener('click', () => setSourceMode(!state.sourceMode));
   $btnOutline.addEventListener('click', () => setOutlineVisible(!state.outlineVisible));
   $btnFiles.addEventListener('click', () => setFilesVisible(!state.filesVisible));
+
+  // Wire the in-preview find bar.
+  $findInput.addEventListener('input', () => runFind($findInput.value));
+  $findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      findStep(e.shiftKey ? -1 : 1);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeFindBar();
+    }
+  });
+  $findPrev.addEventListener('click', () => {
+    findStep(-1);
+    $findInput.focus();
+  });
+  $findNext.addEventListener('click', () => {
+    findStep(1);
+    $findInput.focus();
+  });
+  $findClose.addEventListener('click', () => closeFindBar());
 
   // Wire main -> renderer events.
   window.folioAPI.onCommand((payload) => handleCommand(payload && payload.name));
