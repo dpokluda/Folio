@@ -14,6 +14,7 @@ let isDirty = false;
 let forceClose = false;
 let pendingOpenPath = null; // file to open once the renderer is ready (startup / macOS open-file)
 let currentFolder = null; // root of the open folder (file-explorer mode), or null
+let pendingOpenFolder = null; // folder to open in explorer mode once the renderer is ready (startup)
 
 const REPO_URL = 'https://github.com/dpokluda/Folio';
 
@@ -245,16 +246,20 @@ function send(channel, payload) {
 // File operations
 // ---------------------------------------------------------------------------
 
-// Extract a file path to open from a process argv array. Skips the executable,
-// the app-path arg (present as "." or the project dir when running unpackaged),
-// and any flags; returns the first argument that resolves to an existing file.
-function fileArgFrom(argv) {
+// Extract the first launch argument that resolves to an existing file OR
+// directory, returning { path, isDir }, or null when none is present. Skips the
+// executable, the app-path arg (present as "." or the project dir when running
+// unpackaged), and any flags.
+function pathArgFrom(argv) {
   const args = argv.slice(app.isPackaged ? 1 : 2);
   for (const a of args) {
     if (!a || a.startsWith('-')) continue;
     try {
       const resolved = path.resolve(a);
-      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) return resolved;
+      if (!fs.existsSync(resolved)) continue;
+      const st = fs.statSync(resolved);
+      if (st.isFile()) return { path: resolved, isDir: false };
+      if (st.isDirectory()) return { path: resolved, isDir: true };
     } catch (_) {
       /* ignore and keep scanning */
     }
@@ -262,7 +267,12 @@ function fileArgFrom(argv) {
   return null;
 }
 
-// Open a file requested from outside the app (CLI arg on a running instance,
+// Open a folder requested from outside the app (CLI arg on a running instance),
+// honoring unsaved changes first.
+async function openExternalFolder(dir) {
+  if (!(await confirmDiscardIfDirty())) return;
+  openFolder(dir, { openEntry: true });
+}
 // or macOS Finder "open-file"), honoring unsaved changes first.
 async function openExternalPath(filePath) {
   if (!(await confirmDiscardIfDirty())) return;
@@ -495,21 +505,8 @@ function showAbout() {
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-init', () => {
   let document = null;
-
-  // Restore a previously opened folder (file-explorer mode) if it still exists.
   let folder = null;
-  const storedFolder = store.get('folder');
-  if (storedFolder) {
-    try {
-      if (fs.statSync(storedFolder).isDirectory()) {
-        const tree = scanFolder(storedFolder);
-        folder = { root: storedFolder, name: path.basename(storedFolder) || storedFolder, tree };
-        currentFolder = storedFolder;
-      }
-    } catch (_) {
-      /* folder was moved/deleted — ignore and fall back */
-    }
-  }
+  let filesVisible = false;
 
   const openAsDocument = (target) => {
     const content = fs.readFileSync(target, 'utf8');
@@ -522,27 +519,41 @@ ipcMain.handle('get-init', () => {
     return { path: target, content, name: currentName, baseUrl: pathToFileURL(target).href };
   };
 
+  // If Folio was launched pointing at a folder, start in file-explorer mode and
+  // open that folder's entry document.
+  if (pendingOpenFolder) {
+    const dir = pendingOpenFolder;
+    pendingOpenFolder = null;
+    try {
+      if (fs.statSync(dir).isDirectory()) {
+        const tree = scanFolder(dir);
+        folder = { root: dir, name: path.basename(dir) || dir, tree };
+        currentFolder = dir;
+        store.set('folder', dir);
+        filesVisible = true;
+        const entry = entryDocFor(tree);
+        if (entry) {
+          try {
+            document = openAsDocument(entry);
+          } catch (_) {
+            /* fall through to welcome */
+          }
+        }
+      }
+    } catch (_) {
+      /* folder was moved/deleted — ignore and fall back to welcome */
+    }
+  }
+
   // If Folio was launched with a file path (CLI arg or macOS open-file), open
-  // that file instead of the welcome / folder-entry document.
-  if (pendingOpenPath) {
+  // that file instead of the welcome document.
+  if (!document && pendingOpenPath) {
     const target = pendingOpenPath;
     pendingOpenPath = null;
     try {
       document = openAsDocument(target);
     } catch (err) {
       dialog.showErrorBox('Folio — cannot open file', `${target}\n\n${err.message}`);
-    }
-  }
-
-  // With a restored folder and no explicit file, open the folder's entry doc.
-  if (!document && folder) {
-    const entry = entryDocFor(folder.tree);
-    if (entry) {
-      try {
-        document = openAsDocument(entry);
-      } catch (_) {
-        /* fall through to welcome */
-      }
     }
   }
 
@@ -564,8 +575,10 @@ ipcMain.handle('get-init', () => {
     themeFiles: composeThemeFiles(),
     settings: {
       sourceMode: store.get('sourceMode'),
-      outlineVisible: store.get('outlineVisible'),
-      filesVisible: store.get('filesVisible'),
+      // Outline is never shown automatically on startup; the file explorer only
+      // appears when Folio was launched pointing at a folder.
+      outlineVisible: false,
+      filesVisible,
       zoom: store.get('zoom'),
     },
     folder,
@@ -633,8 +646,9 @@ if (!gotLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
-      const fileArg = fileArgFrom(argv);
-      if (fileArg) openExternalPath(fileArg);
+      const arg = pathArgFrom(argv);
+      if (arg && arg.isDir) openExternalFolder(arg.path);
+      else if (arg) openExternalPath(arg.path);
     }
   });
 
@@ -649,8 +663,10 @@ if (!gotLock) {
     }
   });
 
-  // Windows/Linux: a file path passed on the command line at launch.
-  pendingOpenPath = fileArgFrom(process.argv);
+  // Windows/Linux: a file or folder path passed on the command line at launch.
+  const launchArg = pathArgFrom(process.argv);
+  if (launchArg && launchArg.isDir) pendingOpenFolder = launchArg.path;
+  else if (launchArg) pendingOpenPath = launchArg.path;
 
   app.whenReady().then(() => {
     createWindow();
