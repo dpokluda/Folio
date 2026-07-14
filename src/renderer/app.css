@@ -191,6 +191,92 @@ body {
 .outline-h6 { padding-left: 76px; font-size: 12px; color: #6b7078; }
 
 /* ==========================================================================
+   File explorer (folder mode). Far-left pane; styled like the outline pane.
+   ========================================================================== */
+#folio-files {
+  flex: 0 0 260px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  background: #f6f7f9;
+  border-right: 1px solid #e2e4e8;
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#folio-files[hidden] {
+  display: none;
+}
+.folio-files-title {
+  padding: 12px 16px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a8f98;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#folio-files-tree {
+  padding-bottom: 20px;
+}
+.folio-files-empty {
+  padding: 6px 16px;
+  color: #9298a1;
+  font-style: italic;
+}
+.files-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.files-row:hover {
+  background: #e9ebef;
+}
+.files-twisty {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  font-size: 10px;
+  color: #8a8f98;
+}
+.files-ico {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+}
+.files-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.files-dir .files-name {
+  font-weight: 600;
+  color: #3a3f45;
+}
+.files-file .files-name {
+  color: #3a3f45;
+}
+.files-file.active {
+  background: #dbe6fb;
+}
+.files-file.active .files-name {
+  color: #0a3b82;
+  font-weight: 600;
+}
+.files-file.active:hover {
+  background: #cfe0fb;
+}
+
+/* ==========================================================================
    Status bar (Typora-style): mode toggles on the left, live stats on the right.
    Scoped to #folio-statusbar so no theme rules touch it; uses neutral chrome
    styling that suits the bundled light themes.
@@ -325,6 +411,22 @@ body {
   .outline-item { color: #b7bcc4; }
   .outline-item:hover { background: #24262b; color: #f0f1f3; }
   .outline-h6 { color: #8b919b; }
+
+  /* --- file explorer --- */
+  #folio-files {
+    background: #17181b;
+    border-right-color: #2a2c30;
+    color: #c7cad0;
+  }
+  .folio-files-title { color: #7b818b; }
+  .folio-files-empty { color: #6b7078; }
+  .files-row:hover { background: #24262b; }
+  .files-twisty { color: #7b818b; }
+  .files-dir .files-name,
+  .files-file .files-name { color: #c3c8d0; }
+  .files-file.active { background: #24304d; }
+  .files-file.active .files-name { color: #9db4ff; }
+  .files-file.active:hover { background: #2b385a; }
 
   /* --- status bar --- */
   #folio-statusbar {

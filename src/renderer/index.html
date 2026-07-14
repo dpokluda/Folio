@@ -15,6 +15,11 @@
   </head>
   <body>
     <div id="folio-root">
+      <aside id="folio-files" hidden aria-label="File explorer">
+        <div class="folio-files-title" id="folio-files-title">Files</div>
+        <nav id="folio-files-tree"></nav>
+      </aside>
+
       <aside id="folio-outline" hidden aria-label="Document outline">
         <div class="folio-outline-title">Outline</div>
         <nav id="folio-outline-list"></nav>
@@ -34,6 +39,10 @@
         <!-- Status bar: mode toggles + live document stats. -->
         <footer id="folio-statusbar">
           <div class="folio-status-group">
+            <button id="btn-files" class="folio-status-btn" type="button"
+              title="Toggle File Explorer (Ctrl/Cmd+Shift+E)">
+              <span class="folio-ico">&#128193;</span><span>Files</span>
+            </button>
             <button id="btn-outline" class="folio-status-btn" type="button"
               title="Toggle Outline (Ctrl/Cmd+Shift+O)">
               <span class="folio-ico">&#9776;</span><span>Outline</span>

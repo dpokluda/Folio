@@ -13,6 +13,7 @@ let currentName = 'Welcome'; // display name when untitled
 let isDirty = false;
 let forceClose = false;
 let pendingOpenPath = null; // file to open once the renderer is ready (startup / macOS open-file)
+let currentFolder = null; // root of the open folder (file-explorer mode), or null
 
 const REPO_URL = 'https://github.com/dpokluda/Folio';
 
@@ -31,6 +32,11 @@ function themesDir() {
 function builtinDocPath(file) {
   return path.join(__dirname, '..', 'samples', file);
 }
+
+// ---------------------------------------------------------------------------
+// Folder mode: file-explorer tree + internal link navigation
+// ---------------------------------------------------------------------------
+const { isMarkdownFile, scanFolder, entryDocFor, resolveNavTarget } = require('./folder');
 
 // Built-in documents shown from the Help menu. Opened as *untitled* so they are
 // viewable and editable, but Save becomes Save As and never overwrites the
@@ -191,6 +197,7 @@ function pushTheme() {
 
 const actions = {
   open: () => doOpen(),
+  openFolder: () => doOpenFolder(),
   openRecent: (p) => loadFile(p),
   clearRecent: () => {
     store.clearRecent();
@@ -202,6 +209,7 @@ const actions = {
   newFile: () => doNew(),
   toggleSource: () => send('command', { name: 'toggle-source' }),
   toggleOutline: () => send('command', { name: 'toggle-outline' }),
+  toggleFiles: () => send('command', { name: 'toggle-files' }),
   zoomIn: () => send('command', { name: 'zoom-in' }),
   zoomOut: () => send('command', { name: 'zoom-out' }),
   zoomReset: () => send('command', { name: 'zoom-reset' }),
@@ -281,18 +289,47 @@ async function openBuiltinDoc(key) {
   updateTitle();
 }
 
-async function loadFile(filePath) {
+async function loadFile(filePath, anchor = null) {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     currentPath = filePath;
     currentName = path.basename(filePath);
     store.addRecent(filePath);
     setDirty(false);
-    send('load-document', { path: filePath, content, baseUrl: pathToFileURL(filePath).href });
+    send('load-document', {
+      path: filePath,
+      content,
+      baseUrl: pathToFileURL(filePath).href,
+      anchor: anchor || null,
+    });
     rebuildMenu();
     updateTitle();
   } catch (err) {
     dialog.showErrorBox('Folio — cannot open file', `${filePath}\n\n${err.message}`);
+  }
+}
+
+async function doOpenFolder() {
+  if (!(await confirmDiscardIfDirty())) return;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Open Folder',
+    properties: ['openDirectory'],
+  });
+  if (res.canceled || !res.filePaths.length) return;
+  openFolder(res.filePaths[0], { openEntry: true });
+}
+
+// Scan a folder, push its tree to the renderer's file explorer, and optionally
+// open its entry document. Dirty-check is the caller's responsibility.
+function openFolder(dir, { openEntry } = {}) {
+  const tree = scanFolder(dir);
+  currentFolder = dir;
+  store.set('folder', dir);
+  store.set('filesVisible', true);
+  send('open-folder', { root: dir, name: path.basename(dir) || dir, tree });
+  if (openEntry) {
+    const entry = entryDocFor(tree);
+    if (entry) loadFile(entry);
   }
 }
 
@@ -459,22 +496,53 @@ function showAbout() {
 ipcMain.handle('get-init', () => {
   let document = null;
 
+  // Restore a previously opened folder (file-explorer mode) if it still exists.
+  let folder = null;
+  const storedFolder = store.get('folder');
+  if (storedFolder) {
+    try {
+      if (fs.statSync(storedFolder).isDirectory()) {
+        const tree = scanFolder(storedFolder);
+        folder = { root: storedFolder, name: path.basename(storedFolder) || storedFolder, tree };
+        currentFolder = storedFolder;
+      }
+    } catch (_) {
+      /* folder was moved/deleted — ignore and fall back */
+    }
+  }
+
+  const openAsDocument = (target) => {
+    const content = fs.readFileSync(target, 'utf8');
+    currentPath = target;
+    currentName = path.basename(target);
+    store.addRecent(target);
+    setDirty(false);
+    rebuildMenu();
+    updateTitle();
+    return { path: target, content, name: currentName, baseUrl: pathToFileURL(target).href };
+  };
+
   // If Folio was launched with a file path (CLI arg or macOS open-file), open
-  // that file instead of the welcome document.
+  // that file instead of the welcome / folder-entry document.
   if (pendingOpenPath) {
     const target = pendingOpenPath;
     pendingOpenPath = null;
     try {
-      const content = fs.readFileSync(target, 'utf8');
-      currentPath = target;
-      currentName = path.basename(target);
-      store.addRecent(target);
-      setDirty(false);
-      rebuildMenu();
-      updateTitle();
-      document = { path: target, content, name: currentName, baseUrl: pathToFileURL(target).href };
+      document = openAsDocument(target);
     } catch (err) {
       dialog.showErrorBox('Folio — cannot open file', `${target}\n\n${err.message}`);
+    }
+  }
+
+  // With a restored folder and no explicit file, open the folder's entry doc.
+  if (!document && folder) {
+    const entry = entryDocFor(folder.tree);
+    if (entry) {
+      try {
+        document = openAsDocument(entry);
+      } catch (_) {
+        /* fall through to welcome */
+      }
     }
   }
 
@@ -497,8 +565,10 @@ ipcMain.handle('get-init', () => {
     settings: {
       sourceMode: store.get('sourceMode'),
       outlineVisible: store.get('outlineVisible'),
+      filesVisible: store.get('filesVisible'),
       zoom: store.get('zoom'),
     },
+    folder,
     document,
   };
 });
@@ -508,11 +578,48 @@ ipcMain.on('dirty-changed', (_e, value) => setDirty(value));
 ipcMain.on('state-changed', (_e, state) => {
   if (typeof state.sourceMode === 'boolean') store.set('sourceMode', state.sourceMode);
   if (typeof state.outlineVisible === 'boolean') store.set('outlineVisible', state.outlineVisible);
+  if (typeof state.filesVisible === 'boolean') store.set('filesVisible', state.filesVisible);
   if (typeof state.zoom === 'number') store.set('zoom', state.zoom);
 });
 
 ipcMain.on('open-external', (_e, url) => {
   if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+});
+
+// Navigation from the file explorer (a file click) or from an in-document link
+// (relative path / folder). Honors unsaved changes before switching documents.
+ipcMain.handle('navigate', async (_e, payload) => {
+  const target = resolveNavTarget(payload);
+  if (!target) return { ok: false };
+  switch (target.kind) {
+    case 'markdown':
+      if (!(await confirmDiscardIfDirty())) return { ok: false, canceled: true };
+      loadFile(target.path, target.anchor);
+      return { ok: true };
+    case 'folder-empty':
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Folio',
+        message: 'Nothing to display for this folder.',
+        detail: `${target.path}\n\nAdd an _index.md (or README.md) to make the folder viewable.`,
+        buttons: ['OK'],
+      });
+      return { ok: false };
+    case 'external':
+      shell.openPath(target.path);
+      return { ok: false, external: true };
+    case 'missing':
+      dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Folio',
+        message: 'Cannot find the linked item.',
+        detail: target.path,
+        buttons: ['OK'],
+      });
+      return { ok: false };
+    default:
+      return { ok: false };
+  }
 });
 
 // ---------------------------------------------------------------------------

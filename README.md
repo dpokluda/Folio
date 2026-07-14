@@ -41,10 +41,14 @@ the CSS themes I already use "just work."
 - **Syntax highlighting** of fenced code blocks with
   [highlight.js](https://highlightjs.org/).
 - **Document outline** sidebar generated from headings.
-- **Status bar** (Typora-style) with mode-toggle buttons (Outline, Source/Exit Source) and
-  live document stats: word, character and line counts plus an estimated reading time.
-- **File handling**: Open, Open Recent, Save, Save As, and **Export to PDF** (via Electron's
-  `printToPDF`, honoring the A4 / US Letter page themes).
+- **Folder mode / file explorer** — `File ▸ Open Folder…` shows a browsable tree of the
+  Markdown files in a directory. Click a file to render it; click a link between documents
+  to follow it in place (a folder link opens the folder's `_index.md`). The explorer stays
+  in sync with whatever's rendered, and unsaved changes are guarded before navigating.
+- **Status bar** (Typora-style) with mode-toggle buttons (Files, Outline, Source/Exit Source)
+  and live document stats: word, character and line counts plus an estimated reading time.
+- **File handling**: Open, Open Folder, Open Recent, Save, Save As, and **Export to PDF** (via
+  Electron's `printToPDF`, honoring the A4 / US Letter page themes).
 - **Unsaved-changes tracking** with a title-bar indicator and a save prompt on open/close.
 - **Zoom** in/out/reset, and **cross-platform** (macOS, Linux, Windows).
 
@@ -199,6 +203,14 @@ Windows build.)
 
   You can also drop a file onto the app (or `Folio.exe`), or double-click a file associated
   with Folio. When launched with no file, Folio shows the welcome document.
+- **Open a folder** — `File ▸ Open Folder…` (`Ctrl/Cmd+Shift+K`) opens a **file explorer**
+  down the left side listing the Markdown files in that directory tree. Click a file to render
+  it; the explorer highlights whatever's showing. Clicking a link from one document to another
+  follows it in place, and a link that points at a folder opens that folder's `_index.md`
+  (falling back to `README.md`). If the current document has unsaved edits you're prompted to
+  save or discard first. Toggle the explorer with `View ▸ Toggle File Explorer`
+  (`Ctrl/Cmd+Shift+E`) or the **Files** button in the status bar; the last opened folder is
+  remembered between launches.
 - **Toggle source mode** — `View ▸ Toggle Source Code Mode` (`Ctrl/Cmd+/`), or the
   **`</>` Source** button in the status bar. The themed CodeMirror editor appears; toggle
   back (the button reads **Exit Source**) to re-render the preview.
@@ -288,9 +300,10 @@ src/
   main.js        Electron main process (window, menus, IPC, file I/O, PDF export)
   preload.js     contextBridge IPC surface
   menu.js        native application menu template
+  folder.js      folder-mode helpers: explorer tree scan + link/nav resolution
   store.js       settings persistence (JSON in userData)
   renderer/
-    index.html   #write (preview) + #typora-source (editor) shells
+    index.html   #write (preview) + #typora-source (editor) + file explorer shells
     renderer.js  markdown-it render + CodeMirror 6 + theme swapping (bundled by esbuild)
     app.css      app chrome + CodeMirror→Typora compat + highlight.js token colors
 themes/          Typora-compatible themes (top-level .css files are selectable)

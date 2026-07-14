@@ -14,6 +14,8 @@ const DEFAULTS = {
   window: { width: 1100, height: 820 },
   sourceMode: false,
   outlineVisible: false,
+  filesVisible: false, // file-explorer (folder) pane visibility
+  folder: null, // last opened root folder (absolute path) or null
   zoom: 0,
 };
 

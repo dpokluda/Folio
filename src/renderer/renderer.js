@@ -57,6 +57,11 @@ const state = {
   themesBaseUrl: '',
   themeFiles: [],
   baseUrl: null, // file:// URL of the open document, used to resolve relative assets
+  folder: null, // { root, name } of the open folder, or null
+  tree: [], // file-explorer tree nodes
+  expanded: new Set(), // paths of expanded dirs
+  filesVisible: false,
+  pendingAnchor: null, // heading to scroll to after the next preview render
 };
 
 let editor = null;
@@ -68,8 +73,12 @@ const $preview = document.getElementById('folio-preview');
 const $source = document.getElementById('typora-source');
 const $outline = document.getElementById('folio-outline');
 const $outlineList = document.getElementById('folio-outline-list');
+const $files = document.getElementById('folio-files');
+const $filesTree = document.getElementById('folio-files-tree');
+const $filesTitle = document.getElementById('folio-files-title');
 const $stats = document.getElementById('folio-stats');
 const $btnOutline = document.getElementById('btn-outline');
+const $btnFiles = document.getElementById('btn-files');
 const $btnSource = document.getElementById('btn-source');
 const $btnSourceLabel = document.getElementById('btn-source-label');
 
@@ -172,35 +181,95 @@ function resolveLocalAssets() {
 }
 
 function wireLinks() {
-  // Open external links in the OS browser rather than navigating the window.
   $write.querySelectorAll('a[href]').forEach((a) => {
     const href = a.getAttribute('href') || '';
-    if (/^https?:\/\//i.test(href)) {
+    if (!href) return;
+    if (/^(https?:|mailto:)/i.test(href)) {
+      // External links open in the OS browser / mail client.
       a.addEventListener('click', (e) => {
         e.preventDefault();
         window.folioAPI.openExternal(href);
       });
+      return;
     }
+    if (href.startsWith('#')) {
+      // In-page anchor: scroll within the current document.
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        scrollToAnchor(href.slice(1));
+      });
+      return;
+    }
+    // Relative / internal link (another doc or a folder). Let main resolve it
+    // against the current document and navigate (with an unsaved-changes check).
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigateTo({ href, fromPath: state.path });
+    });
   });
+}
+
+// Ask main to open a target: either { path } (explorer click) or
+// { href, fromPath } (in-document link). Main handles the dirty prompt and,
+// on success, sends back a load-document that updates the view + explorer.
+function navigateTo(payload) {
+  Promise.resolve(window.folioAPI.navigate(payload)).catch((err) => console.error(err));
+}
+
+// GitHub-style heading slug so both the outline and `#anchor` links resolve to
+// the same ids.
+function githubSlug(text) {
+  return (text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-');
+}
+
+function scrollToAnchor(rawId) {
+  if (!rawId) return;
+  let id = rawId;
+  try {
+    id = decodeURIComponent(rawId);
+  } catch (_) {
+    /* use raw */
+  }
+  const slug = githubSlug(id);
+  let el = document.getElementById(id) || (slug && document.getElementById(slug));
+  if (!el) {
+    el = [...$write.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(
+      (h) => githubSlug(h.textContent || '') === slug
+    );
+  }
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ---------------------------------------------------------------------------
 // Outline
 // ---------------------------------------------------------------------------
-function slugify(text, index) {
-  const base = text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-');
-  return base ? `${base}-${index}` : `heading-${index}`;
+// Assign GitHub-style ids to headings (deduping collisions) so both the
+// outline and in-document `#anchor` links resolve to the same targets.
+function assignHeadingIds(headings) {
+  const seen = Object.create(null);
+  headings.forEach((h) => {
+    if (h.id) return;
+    let base = githubSlug(h.textContent || '') || 'section';
+    let id = base;
+    if (seen[base] != null) {
+      seen[base] += 1;
+      id = `${base}-${seen[base]}`;
+    } else {
+      seen[base] = 0;
+    }
+    h.id = id;
+  });
 }
 
 function buildOutline() {
   const headings = $write.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  assignHeadingIds(headings);
   $outlineList.innerHTML = '';
-  headings.forEach((h, i) => {
-    if (!h.id) h.id = slugify(h.textContent || '', i);
+  headings.forEach((h) => {
     const item = document.createElement('a');
     item.className = `outline-item outline-${h.tagName.toLowerCase()}`;
     item.textContent = h.textContent || '';
@@ -211,6 +280,130 @@ function buildOutline() {
     });
     $outlineList.appendChild(item);
   });
+}
+
+// ---------------------------------------------------------------------------
+// File explorer (folder mode)
+// ---------------------------------------------------------------------------
+function normPath(p) {
+  return (p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function samePath(a, b) {
+  return !!a && !!b && normPath(a) === normPath(b);
+}
+
+// Set (or clear) the open folder and render its tree. `show` controls whether
+// the pane becomes visible (true for an explicit Open Folder, driven by the
+// stored preference at boot).
+function setFolder(payload, show) {
+  if (!payload) {
+    state.folder = null;
+    state.tree = [];
+    state.expanded = new Set();
+  } else {
+    state.folder = { root: payload.root, name: payload.name };
+    state.tree = payload.tree || [];
+    state.expanded = new Set();
+    // Pre-expand top-level folders + the path down to the active file.
+    state.tree.forEach((n) => {
+      if (n.type === 'dir') state.expanded.add(n.path);
+    });
+    expandAncestorsOf(state.path);
+  }
+  $filesTitle.textContent = state.folder ? state.folder.name : 'Files';
+  renderFileTree();
+  if (show != null) setFilesVisible(show);
+}
+
+function expandAncestorsOf(filePath) {
+  if (!filePath) return;
+  const target = normPath(filePath);
+  const walk = (nodes) => {
+    nodes.forEach((n) => {
+      if (n.type === 'dir') {
+        if (target.startsWith(normPath(n.path) + '/')) state.expanded.add(n.path);
+        walk(n.children);
+      }
+    });
+  };
+  walk(state.tree);
+}
+
+function renderFileTree() {
+  $filesTree.innerHTML = '';
+  if (!state.tree.length) {
+    const empty = document.createElement('div');
+    empty.className = 'folio-files-empty';
+    empty.textContent = state.folder ? 'No markdown files' : 'No folder open';
+    $filesTree.appendChild(empty);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  state.tree.forEach((node) => frag.appendChild(renderTreeNode(node, 0)));
+  $filesTree.appendChild(frag);
+  const active = $filesTree.querySelector('.files-file.active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+function renderTreeNode(node, depth) {
+  const indent = 8 + depth * 14;
+  if (node.type === 'dir') {
+    const wrap = document.createElement('div');
+    const open = state.expanded.has(node.path);
+    const row = document.createElement('div');
+    row.className = 'files-row files-dir';
+    row.style.paddingLeft = `${indent}px`;
+    const twisty = document.createElement('span');
+    twisty.className = 'files-twisty';
+    twisty.textContent = open ? '\u25be' : '\u25b8'; // ▾ / ▸
+    const ico = document.createElement('span');
+    ico.className = 'files-ico';
+    ico.textContent = open ? '\u{1f4c2}' : '\u{1f4c1}'; // open/closed folder
+    const name = document.createElement('span');
+    name.className = 'files-name';
+    name.textContent = node.name;
+    row.append(twisty, ico, name);
+    row.addEventListener('click', () => {
+      if (state.expanded.has(node.path)) state.expanded.delete(node.path);
+      else state.expanded.add(node.path);
+      renderFileTree();
+    });
+    wrap.appendChild(row);
+    if (open) {
+      node.children.forEach((c) => wrap.appendChild(renderTreeNode(c, depth + 1)));
+    }
+    return wrap;
+  }
+  // File
+  const row = document.createElement('div');
+  row.className = 'files-row files-file';
+  if (samePath(node.path, state.path)) row.classList.add('active');
+  row.style.paddingLeft = `${indent + 14}px`; // align past the folder twisty
+  row.title = node.path;
+  const ico = document.createElement('span');
+  ico.className = 'files-ico';
+  ico.textContent = '\u{1f4c4}'; // 📄
+  const name = document.createElement('span');
+  name.className = 'files-name';
+  name.textContent = node.name;
+  row.append(ico, name);
+  row.addEventListener('click', () => navigateTo({ path: node.path }));
+  return row;
+}
+
+// Keep the explorer highlight/expansion in sync with the active document.
+function syncFileTree() {
+  if (!state.tree.length) return;
+  expandAncestorsOf(state.path);
+  renderFileTree();
+}
+
+function setFilesVisible(on) {
+  state.filesVisible = on;
+  $files.hidden = !on;
+  updateStatusButtons();
+  persistState();
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +438,7 @@ function updateStatusButtons() {
     ? 'Exit Source Code Mode (Ctrl/Cmd+/)'
     : 'Toggle Source Code Mode (Ctrl/Cmd+/)';
   $btnOutline.classList.toggle('active', state.outlineVisible);
+  $btnFiles.classList.toggle('active', state.filesVisible);
 }
 function setSourceMode(on) {
   state.sourceMode = on;
@@ -342,6 +536,7 @@ function loadDocument(doc) {
   state.docText = doc.content || '';
   state.savedText = state.docText;
   state.dirty = false;
+  state.pendingAnchor = doc.anchor || null;
   window.folioAPI.setDirty(false);
 
   if (state.sourceMode) {
@@ -351,7 +546,13 @@ function loadDocument(doc) {
     updateStats();
   } else {
     renderPreview();
+    if (state.pendingAnchor) {
+      const anchor = state.pendingAnchor;
+      requestAnimationFrame(() => scrollToAnchor(anchor));
+    }
   }
+  state.pendingAnchor = null;
+  syncFileTree();
   updateStatusButtons();
   $preview.scrollTop = 0;
 }
@@ -363,6 +564,7 @@ function persistState() {
   window.folioAPI.setState({
     sourceMode: state.sourceMode,
     outlineVisible: state.outlineVisible,
+    filesVisible: state.filesVisible,
     zoom: state.zoom,
   });
 }
@@ -377,6 +579,9 @@ function handleCommand(name) {
       break;
     case 'toggle-outline':
       setOutlineVisible(!state.outlineVisible);
+      break;
+    case 'toggle-files':
+      setFilesVisible(!state.filesVisible);
       break;
     case 'zoom-in':
       zoom(1);
@@ -421,6 +626,14 @@ async function boot() {
   applyZoom();
   setOutlineVisible(!!s.outlineVisible);
 
+  // Restore a previously opened folder (explorer tree) before loading the doc,
+  // so the initial document highlights correctly. Visibility follows the stored
+  // preference.
+  if (init.folder) {
+    setFolder(init.folder, null);
+  }
+  setFilesVisible(!!s.filesVisible && !!state.folder);
+
   // Load initial document (rendered preview first).
   loadDocument(init.document || { path: null, content: '' });
 
@@ -430,16 +643,19 @@ async function boot() {
   // Wire status-bar buttons.
   $btnSource.addEventListener('click', () => setSourceMode(!state.sourceMode));
   $btnOutline.addEventListener('click', () => setOutlineVisible(!state.outlineVisible));
+  $btnFiles.addEventListener('click', () => setFilesVisible(!state.filesVisible));
 
   // Wire main -> renderer events.
   window.folioAPI.onCommand((payload) => handleCommand(payload && payload.name));
   window.folioAPI.onLoadDocument((doc) => loadDocument(doc));
+  window.folioAPI.onOpenFolder((payload) => setFolder(payload, true));
   window.folioAPI.onSetTheme((themeFile) => applyTheme(themeFile));
   window.folioAPI.onSaved(() => markSaved());
   window.folioAPI.onDocumentPathChanged((info) => {
     state.path = info && info.path;
     if (info && info.baseUrl) state.baseUrl = info.baseUrl;
     if (!state.sourceMode) renderPreview();
+    syncFileTree();
   });
 }
 
