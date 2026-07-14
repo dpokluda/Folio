@@ -66,6 +66,8 @@ Folio deliberately mirrors Typora's DOM so existing themes render faithfully:
 ## How to build & run
 
 **Prerequisites:** [Node.js LTS](https://nodejs.org/) (Node 18+; developed on Node 20/24).
+Very new, non-LTS Node releases (26+) can trip up Electron's installer — see
+[If Electron fails to install correctly](#if-electron-fails-to-install-correctly) below.
 
 ```sh
 # 1. Install dependencies
@@ -77,6 +79,35 @@ npm start
 
 `npm start` bundles the renderer with [esbuild](https://esbuild.github.io/) and launches
 Electron. On first launch it opens a bundled `samples/welcome.md` demo document.
+
+#### If Electron fails to install correctly
+
+On some **bleeding-edge Node.js releases** (e.g. Node 26+), Electron's own
+`postinstall` step silently fails to unpack its runtime — the per-platform binary
+downloads and is cached, but the bundled `extract-zip` extractor no-ops, leaving
+`node_modules/electron` with no `path.txt` and an empty `dist/`. Running the app
+then throws:
+
+```
+Error: Electron failed to install correctly, please delete node_modules/electron
+and try installing again
+```
+
+Folio self-heals this automatically. A small helper, `scripts/ensure-electron.js`,
+runs on `postinstall` and again before `npm start` / `npm run dist*`. If Electron's
+binary is missing it locates the cached download (fetching it via Electron's own
+installer if needed) and extracts it with the platform's **native** unzip tool
+(`ditto` on macOS, `unzip` on Linux, `Expand-Archive` on Windows), then writes
+`path.txt`. When Electron is already installed correctly it's a no-op, so it's safe
+on every platform. You can also run it directly:
+
+```sh
+npm run ensure:electron
+```
+
+> The most robust fix is still to use an **Electron-supported Node.js LTS**
+> (Node 18/20/22), where Electron's normal installer works and the helper simply
+> no-ops.
 
 ### Packaging
 

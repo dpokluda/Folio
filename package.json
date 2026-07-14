@@ -14,15 +14,17 @@
     "url": "https://github.com/dpokluda/Folio.git"
   },
   "scripts": {
+    "postinstall": "node scripts/ensure-electron.js",
+    "ensure:electron": "node scripts/ensure-electron.js",
     "build:renderer": "node build.js",
     "watch:renderer": "node build.js --watch",
-    "start": "npm run build:renderer && electron .",
+    "start": "npm run ensure:electron && npm run build:renderer && electron .",
     "icons": "node scripts/generate-icons.js",
     "prepare:wincodesign": "node scripts/prepare-wincodesign.js",
-    "dist": "npm run build:renderer && npm run prepare:wincodesign && electron-builder",
-    "dist:win": "npm run build:renderer && npm run prepare:wincodesign && electron-builder --win",
-    "dist:mac": "npm run build:renderer && electron-builder --mac",
-    "dist:linux": "npm run build:renderer && electron-builder --linux"
+    "dist": "npm run ensure:electron && npm run build:renderer && npm run prepare:wincodesign && electron-builder",
+    "dist:win": "npm run ensure:electron && npm run build:renderer && npm run prepare:wincodesign && electron-builder --win",
+    "dist:mac": "npm run ensure:electron && npm run build:renderer && electron-builder --mac",
+    "dist:linux": "npm run ensure:electron && npm run build:renderer && electron-builder --linux"
   },
   "dependencies": {
     "@codemirror/commands": "^6.6.0",

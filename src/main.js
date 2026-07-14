@@ -228,7 +228,7 @@ async function loadFile(filePath) {
     currentName = path.basename(filePath);
     store.addRecent(filePath);
     setDirty(false);
-    send('load-document', { path: filePath, content });
+    send('load-document', { path: filePath, content, baseUrl: pathToFileURL(filePath).href });
     rebuildMenu();
     updateTitle();
   } catch (err) {
@@ -300,7 +300,7 @@ async function doSaveAs() {
     store.addRecent(res.filePath);
     setDirty(false);
     send('saved');
-    send('document-path-changed', { path: res.filePath });
+    send('document-path-changed', { path: res.filePath, baseUrl: pathToFileURL(res.filePath).href });
     rebuildMenu();
     updateTitle();
     return true;
@@ -414,7 +414,7 @@ ipcMain.handle('get-init', () => {
       setDirty(false);
       rebuildMenu();
       updateTitle();
-      document = { path: target, content, name: currentName };
+      document = { path: target, content, name: currentName, baseUrl: pathToFileURL(target).href };
     } catch (err) {
       dialog.showErrorBox('Folio — cannot open file', `${target}\n\n${err.message}`);
     }
@@ -422,12 +422,15 @@ ipcMain.handle('get-init', () => {
 
   if (!document) {
     let initialContent = '';
+    let baseUrl = null;
     try {
-      initialContent = fs.readFileSync(builtinDocPath('welcome.md'), 'utf8');
+      const welcomePath = builtinDocPath('welcome.md');
+      initialContent = fs.readFileSync(welcomePath, 'utf8');
+      baseUrl = pathToFileURL(welcomePath).href;
     } catch (_) {
       initialContent = '# Welcome to Folio\n\nCreate or open a Markdown file to get started.\n';
     }
-    document = { path: null, content: initialContent, name: 'Welcome' };
+    document = { path: null, content: initialContent, name: 'Welcome', baseUrl };
   }
 
   return {

@@ -55,6 +55,7 @@ const state = {
   zoom: 0, // integer steps of 10%
   dirty: false,
   themesBaseUrl: '',
+  baseUrl: null, // file:// URL of the open document, used to resolve relative assets
 };
 
 let editor = null;
@@ -124,9 +125,32 @@ function currentText() {
 function renderPreview() {
   const html = md.render(currentText() || '');
   $write.innerHTML = html;
+  resolveLocalAssets();
   wireLinks();
   buildOutline();
   updateStats();
+}
+
+// Rewrite relative asset URLs (e.g. `docs/folio.png`) so they resolve against
+// the *opened document's* folder rather than the app's renderer directory.
+// Without this, relative <img> paths 404 because the window is loaded from
+// src/renderer/index.html. Absolute, remote (http/https), data:, blob:, and
+// already-file: URLs are left untouched.
+function resolveLocalAssets() {
+  if (!state.baseUrl) return;
+  $write.querySelectorAll('img[src]').forEach((img) => {
+    const src = img.getAttribute('src') || '';
+    // Skip anchors and anything that already carries a URL scheme or is
+    // protocol-relative (`//host/...`).
+    if (!src || src.startsWith('#') || src.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(src)) {
+      return;
+    }
+    try {
+      img.setAttribute('src', new URL(src, state.baseUrl).href);
+    } catch (_) {
+      /* leave the original src in place */
+    }
+  });
 }
 
 function wireLinks() {
@@ -281,6 +305,7 @@ function markSaved() {
 // ---------------------------------------------------------------------------
 function loadDocument(doc) {
   state.path = doc.path || null;
+  state.baseUrl = doc.baseUrl || null;
   state.docText = doc.content || '';
   state.savedText = state.docText;
   state.dirty = false;
@@ -380,6 +405,8 @@ async function boot() {
   window.folioAPI.onSaved(() => markSaved());
   window.folioAPI.onDocumentPathChanged((info) => {
     state.path = info && info.path;
+    if (info && info.baseUrl) state.baseUrl = info.baseUrl;
+    if (!state.sourceMode) renderPreview();
   });
 }
 
