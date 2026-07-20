@@ -47,6 +47,9 @@ the CSS themes I already use "just work."
   Markdown files in a directory. Click a file to render it; click a link between documents
   to follow it in place (a folder link opens the folder's `_index.md`). The explorer stays
   in sync with whatever's rendered, and unsaved changes are guarded before navigating.
+- **Back / forward navigation**, `Go > Back` (`Alt+Left`, or `Cmd+[` on macOS) and
+  `Go > Forward` (`Alt+Right`, or `Cmd+]`) walk your document history like a browser after
+  following links between files.
 - **Status bar** (Typora-style) with mode-toggle buttons (Files, Outline, Source/Exit Source)
   and live document stats: word, character and line counts plus an estimated reading time.
 - **File handling**: Open, Open Folder, Open Recent, Save, Save As, and **Export to PDF** (via
@@ -280,6 +283,10 @@ again.
   (`Ctrl/Cmd+Alt+E`) or the **Files** button in the status bar; the last opened folder is
   remembered between launches. Close the folder with `File > Close Folder` (`Ctrl/Cmd+Shift+W`),
   which hides the explorer and returns to the Welcome document.
+- **Go back / forward**, `Go > Back` (`Alt+Left`, `Cmd+[` on macOS) and `Go > Forward`
+  (`Alt+Right`, `Cmd+]`) retrace the documents you've viewed after following links between
+  files, like a browser. Unsaved edits are guarded before moving, and the file explorer keeps
+  its selection in sync.
 - **Toggle source mode**, `View > Toggle Source Code Mode` (`Ctrl/Cmd+/`), or the
   **`</>` Source** button in the status bar. The themed CodeMirror editor appears; toggle
   back (the button reads **Exit Source**) to re-render the preview.

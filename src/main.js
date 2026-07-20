@@ -29,6 +29,8 @@ class Session {
     this.pendingOpenFolder = null; // folder to open in explorer mode once the renderer is ready
     this.watchedPath = null; // file currently watched for external changes, or null
     this.lastMtimeMs = 0; // last-seen mtime of the watched file, to ignore our own writes
+    this.history = []; // visited file docs [{ path, anchor }], oldest -> newest
+    this.historyIndex = -1; // position within history; -1 when empty
   }
 }
 
@@ -266,6 +268,8 @@ function rebuildMenu() {
     recentFiles: store.get('recentFiles') || [],
     hasFolder: !!(session && session.currentFolder),
     hasFile: !!(session && session.currentPath),
+    canGoBack: canGoBack(session),
+    canGoForward: canGoForward(session),
     lineNumbers: !!store.get('lineNumbers'),
     actions,
   });
@@ -284,6 +288,8 @@ const actions = {
   openFolder: () => withSession((s) => doOpenFolder(s)),
   closeFolder: () => withSession((s) => doCloseFolder(s)),
   openRecent: (p) => withSession((s) => loadFile(s, p)),
+  back: () => withSession((s) => navigateHistory(s, -1)),
+  forward: () => withSession((s) => navigateHistory(s, 1)),
   clearRecent: () => {
     store.clearRecent();
     rebuildMenu();
@@ -499,6 +505,7 @@ function loadBuiltinDoc(session, key) {
   session.currentName = doc.name;
   setDirty(session, false);
   stopWatching(session);
+  resetHistory(session);
   send(session, 'load-document', { path: null, content, name: doc.name });
   updateTitle(session);
   rebuildMenu();
@@ -608,7 +615,69 @@ async function doReload(session) {
   reloadCurrentFile(session);
 }
 
-async function loadFile(session, filePath, anchor = null) {
+// ---------------------------------------------------------------------------
+// Back/forward navigation history
+//
+// A per-session, browser-style stack of the file documents the user has viewed.
+// Only real files are tracked (built-in Welcome/Untitled docs reset it so
+// Back/Forward stay disabled outside a reading context). Clicking a link,
+// picking a file in the explorer, and Open/Open Recent all push onto it; Back and
+// Forward walk it without recording a new entry.
+// ---------------------------------------------------------------------------
+
+// Push a freshly navigated-to file onto the session's history, dropping any
+// forward entries. A repeat of the current document only updates its anchor.
+function recordHistory(session, filePath, anchor = null) {
+  if (!session || !filePath) return;
+  session.history = session.history.slice(0, session.historyIndex + 1);
+  const top = session.history[session.historyIndex];
+  if (top && top.path === filePath) {
+    top.anchor = anchor || null;
+    return;
+  }
+  session.history.push({ path: filePath, anchor: anchor || null });
+  session.historyIndex = session.history.length - 1;
+}
+
+// Reset history to a single seed file (or empty for built-in/untitled docs).
+function resetHistory(session, filePath = null, anchor = null) {
+  if (!session) return;
+  session.history = filePath ? [{ path: filePath, anchor: anchor || null }] : [];
+  session.historyIndex = session.history.length - 1;
+}
+
+function canGoBack(session) {
+  return !!session && session.historyIndex > 0;
+}
+
+function canGoForward(session) {
+  return !!session && session.historyIndex >= 0 && session.historyIndex < session.history.length - 1;
+}
+
+// Walk history by delta (-1 = Back, +1 = Forward). Honors unsaved changes and
+// skips entries whose file has since disappeared, loading without re-recording.
+async function navigateHistory(session, delta) {
+  if (!session) return;
+  const targetIndex = session.historyIndex + delta;
+  if (targetIndex < 0 || targetIndex >= session.history.length) return;
+  const entry = session.history[targetIndex];
+  if (!entry) return;
+  if (!fs.existsSync(entry.path)) {
+    dialog.showMessageBox(session.win, {
+      type: 'warning',
+      title: 'Folio',
+      message: 'That document is no longer available.',
+      detail: entry.path,
+      buttons: ['OK'],
+    });
+    return;
+  }
+  if (!(await confirmDiscardIfDirty(session))) return;
+  session.historyIndex = targetIndex;
+  loadFile(session, entry.path, entry.anchor, { record: false });
+}
+
+async function loadFile(session, filePath, anchor = null, { record = true } = {}) {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     session.currentPath = filePath;
@@ -616,6 +685,7 @@ async function loadFile(session, filePath, anchor = null) {
     store.addRecent(filePath);
     setDirty(session, false);
     watchCurrentFile(session);
+    if (record) recordHistory(session, filePath, anchor);
     send(session, 'load-document', {
       path: filePath,
       content,
@@ -647,6 +717,7 @@ function openFolder(session, dir, { openEntry } = {}) {
   store.set('folder', dir);
   store.set('filesVisible', true);
   invalidateSearchCache();
+  resetHistory(session);
   send(session, 'open-folder', { root: dir, name: path.basename(dir) || dir, tree });
   if (openEntry) {
     const entry = entryDocFor(tree);
@@ -675,6 +746,7 @@ async function doNew(session) {
   session.currentName = 'Untitled';
   setDirty(session, false);
   stopWatching(session);
+  resetHistory(session);
   send(session, 'load-document', { path: null, content: '' });
   updateTitle(session);
   rebuildMenu();
@@ -927,6 +999,10 @@ ipcMain.handle('get-init', (event) => {
     }
     document = { path: null, content: initialContent, name: 'Welcome', baseUrl };
   }
+
+  // Seed the back/forward history so a link click from the first document can be
+  // walked back to it. Built-in/untitled docs (path null) start with empty history.
+  if (session) resetHistory(session, document.path || null);
 
   return {
     themesBaseUrl: pathToFileURL(themesDir() + path.sep).href,
